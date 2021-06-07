@@ -1,0 +1,437 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  drupal: wxt-8.x
+  template: drupal-template
+message: 'A new Drupal instance has been created in your project. The admin username/password for accessing the Drupal admin console is is ${DRUPAL_ADMIN_USERNAME}/${DRUPAL_ADMIN_USERNAME}.'
+metadata:
+  annotations:
+    description: Install Drupal WxT 8.x in your project.
+    iconClass: icon-drupal
+    openshift.io/display-name: Drupal WxT 8.x with PostgreSQL
+    openshift.io/provider-display-name: DND - DAMII
+    tags: drupal,postgresql,wxt
+    template.openshift.io/documentation-url: https://google.ca
+    template.openshift.io/long-description: This template defines resources needed to build and deploy Druapl WxT in your own project.
+    template.openshift.io/support-url: https://google.ca
+    version: site-wxt-8.x
+  name: drupal-wxt-template
+parameters:
+- description: The name for the application.
+  displayName: Application Name
+  name: APPLICATION_NAME
+  required: true
+  value: drupal-wxt
+- description: The namespace/project where you will be installing Drupal.
+  displayName: Application Namespace/Project
+  name: NAMESPACE
+  required: true
+- description: The git repository to build Drupal from.
+  displayName: Drupal WxT source git repostitory.
+  name: GIT_REPOSITORY
+  required: true
+  value: https://github.com/pittar-sandbox/site-wxt.git
+- description: The git branch or tag to build from.
+  displayName: Git branch or tag.
+  name: GIT_REVISION
+  required: true
+  value: ised-8.x
+- description: Volume space available for Drupal data, e.g. 512Mi, 2Gi.
+  displayName: Drupal Volume Capacity
+  name: DRUPAL_VOLUME_CAPACITY
+  required: true
+  value: 5Gi
+- description: Database name
+  displayName: Database Name
+  name: DB_NAME
+  required: true
+  value: drupal
+- description: Database user name
+  displayName: Database Username
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: DB_USERNAME
+  required: true
+- description: Database user password
+  displayName: Database Password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: DB_PASSWORD
+  required: true
+- description: Volume space available for PostgreSQL data, e.g. 512Mi, 2Gi.
+  displayName: PostgrSQL Volume Capacity
+  name: DB_VOLUME_CAPACITY
+  required: true
+  value: 1Gi
+- description: Version of PostgreSQL image to be used (10-el7, 10-el8, or latest).
+  displayName: Version of PostgreSQL Image
+  name: POSTGRESQL_VERSION
+  required: true
+  value: 10-el8
+objects:
+# Pipeline Resources.
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: build-workspace-pvc
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+- kind: Pipeline
+  apiVersion: tekton.dev/v1beta1
+  metadata:
+    name: build-and-deploy-drupal-wxt
+  spec:
+    workspaces:
+      - name: build-workspace
+    params:
+      - name: git-repo-url
+        type: string
+        default: ${GIT_REPOSITORY}
+      - name: git-repo-revision
+        type: string
+        default: ${GIT_REVISION}
+      - name: namespace
+        type: string
+        default: ${NAMESPACE}
+      - name: image-name
+        type: string
+        default: drupal-wxt
+      - name: app-name
+        type: string
+        default: drupal-app
+    tasks:
+      - name: git-clone
+        taskRef:
+          name: git-clone
+          kind: ClusterTask
+        workspaces:
+          - name: output
+            workspace: build-workspace
+        params:
+          - name: url
+            value: "$(params.git-repo-url)"
+          - name: revision
+            value: "$(params.git-repo-revision)"
+          - name: deleteExisting
+            value: "true"
+      - name: build-drupal
+        taskRef:
+          name: s2i-php
+          kind: ClusterTask
+        params:
+          - name: IMAGE
+            value: image-registry.openshift-image-registry.svc:5000/$(params.namespace)/$(params.image-name):latest
+        workspaces:
+          - name: source
+            workspace: build-workspace
+        runAfter:
+          - git-clone
+      - name: deploy-app
+        taskRef:
+          kind: ClusterTask
+          name: openshift-client
+        runAfter:
+          - build-drupal
+        params:
+          - name: SCRIPT
+            value: oc rollout restart deployment/$(params.app-name) -n $(params.namespace)
+- kind: PipelineRun
+  apiVersion: tekton.dev/v1beta1
+  metadata:
+    generateName: build-and-deploy-drupal-wxt-
+  spec:
+    pipelineRef:
+      name: build-and-deploy-drupal-wxt
+    workspaces:
+      - name: build-workspace
+        persistentVolumeClaim:
+          claimName: build-workspace-pvc
+# PostgreSQL database resources.
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: drupal-db-data
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${DB_VOLUME_CAPACITY}
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    annotations:
+      template.openshift.io/expose-database_name: '{.data[''database_name'']}'
+      template.openshift.io/expose-password: '{.data[''database_password'']}'
+      template.openshift.io/expose-username: '{.data[''database_user'']}'
+    name: drupal-db
+  type: Opaque
+  stringData:
+    database_name: ${DB_NAME}
+    database_password: ${DB_PASSWORD}
+    database_user: ${DB_USERNAME}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: drupal-db
+  spec:
+    ports:
+      - name: postgresql
+        port: 5432
+    selector:
+      name: drupal-db
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: drupal-db
+      app.kubernetes.io/component: drupal-db
+      app.kubernetes.io/instance: drupal-db
+      app.kubernetes.io/part-of: ${APPLICATION_NAME}
+      app.openshift.io/runtime: postgresql
+    name: drupal-db
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      name: drupal-db
+    strategy:
+      activeDeadlineSeconds: 21600
+      recreateParams:
+        timeoutSeconds: 600
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: drupal-db
+      spec:
+        containers:
+        - env:
+          - name: POSTGRESQL_USER
+            valueFrom:
+              secretKeyRef:
+                key: database_user
+                name: drupal-db
+          - name: POSTGRESQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database_password
+                name: drupal-db
+          - name: POSTGRESQL_DATABASE
+            valueFrom:
+              secretKeyRef:
+                key: database_name
+                name: drupal-db
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+              - /usr/libexec/check-container
+              - --live
+            failureThreshold: 3
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: postgresql
+          ports:
+          - containerPort: 5432
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - /usr/libexec/check-container
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+          securityContext:
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/pgsql/data
+            name: drupal-db-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: drupal-db-data
+          persistentVolumeClaim:
+            claimName: drupal-db-data
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - postgresql
+        from:
+          kind: ImageStreamTag
+          name: postgresql:${POSTGRESQL_VERSION}
+          namespace: openshift
+      type: ImageChange
+    - type: ConfigChange
+# Drupal app resources.
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: drupal-data
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${DRUPAL_VOLUME_CAPACITY}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      app.openshift.io/connects-to: '[{"apiVersion":"apps.openshift.io/v1","kind":"DeploymentConfig","name":"drupal-db"}]'
+    labels:
+      app: drupal-app
+      app.kubernetes.io/component: drupal-app
+      app.kubernetes.io/instance: drupal-app
+      app.kubernetes.io/name: drupal-app
+      app.kubernetes.io/part-of: ${APPLICATION_NAME}
+      app.openshift.io/runtime: drupal
+    name: drupal-app
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: drupal-app
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: drupal-app
+          deploymentconfig: drupal-app
+      spec:
+        containers:
+          - image: image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/drupal-wxt:latest
+            imagePullPolicy: Always
+            name: drupal-app
+            env:
+              - name: PHP_MEMORY_LIMIT
+                value: 512M
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+              - containerPort: 8443
+                protocol: TCP
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+              - mountPath: /opt/app-root/src/data
+                name: drupal-data
+              - mountPath: /opt/app-root/src/html/sites
+                name: drupal-data
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: '1'
+                memory: 1Gi
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        terminationGracePeriodSeconds: 30
+        volumes:
+          - name: drupal-data
+            persistentVolumeClaim:
+              claimName: drupal-data
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: drupal-app
+      app.kubernetes.io/component: drupal-app
+      app.kubernetes.io/instance: drupal-app
+      app.kubernetes.io/part-of: ${APPLICATION_NAME}
+    name: drupal-app
+  spec:
+    ports:
+      - name: 8080-tcp
+        port: 8080
+      - name: 8443-tcp
+        port: 8443
+    selector:
+      app: drupal-app
+      deploymentconfig: drupal-app
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: drupal-app
+      app.kubernetes.io/component: drupal-app
+      app.kubernetes.io/instance: drupal-app
+      app.kubernetes.io/part-of: ${APPLICATION_NAME}
+    name: drupal-app
+  spec:
+    port:
+      targetPort: 8080-tcp
+    tls:
+      insecureEdgeTerminationPolicy: Redirect
+      termination: edge
+    to:
+      kind: Service
+      name: drupal-app
+      weight: 100
+    wildcardPolicy: None
+# Drupal install job.
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: drush
+- kind: RoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: drush-admin
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: admin
+  subjects:
+    - kind: ServiceAccount
+      name: drush
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: drush-install
+  spec:
+    template:
+      spec:
+        containers:
+          - image: registry.redhat.io/openshift4/ose-cli:v4.7
+            command:
+              - /bin/bash
+              - -c
+              - |
+                echo "Waiting for Drupal to come online..."
+                bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' drupal-app:8080/core/install.php)" != "200" ]]; do sleep 5; done'
+                echo "Drupal is up!  Complete installation."
+                echo "Database name: $database_name"
+                oc exec deployment/drupal-app -i -- /opt/app-root/src/vendor/bin/drush si wxt --db-url=pgsql://$database_user:$database_password@drupal-db/$database_name --site-name=main --account-pass=password --yes
+            imagePullPolicy: Always
+            name: drush-install
+            envFrom:
+              - secretRef:
+                  name: drupal-db
+        dnsPolicy: ClusterFirst
+        restartPolicy: OnFailure
+        serviceAccount: drush
+        serviceAccountName: drush
+        terminationGracePeriodSeconds: 30

@@ -14,4 +14,4 @@
 
 ## 4. Back to Option #1, but UI-based "self-serve" with Template
 
-* TBD
+* [OpenShift Template](4-openshift-template)
