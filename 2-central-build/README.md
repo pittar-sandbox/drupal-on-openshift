@@ -30,12 +30,6 @@ Finally, you can deploy Drupal:
 oc apply -f 2-central-build/drupal/
 ```
 
-Once Drupal has started, you can either complete the install manually by clicking on the route and following the instructions, or you can use the Job to run `drush` to complete the install:
-
-```
-
-```
-
 Once the build completes it will deploy the new image.  You can then click on the Drupal route in order to finish the install manually, or you can create a `Job` to do this for you automatically.  The `Job` uses the Drupal Shell (drush).  It will take 5-10min for Drupal to finish installing.  The `Job` pod will turn green when it is complete.
 
 ```
