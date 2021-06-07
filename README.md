@@ -4,7 +4,7 @@
 
 * [All-in-One Option](1-all-in-one)
 
-## 2. Centrally Build/Distribute Drupal Image (unmaged instances)
+## 2. Centrally Build/Distribute Drupal Image (unmanaged instances)
 
 * [Central Build Option](2-central-build)
 

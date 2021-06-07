@@ -3,7 +3,7 @@
 First, create a new Project/Namespace:
 
 ```
-oc new-project all-in-one
+oc new-project all-in-one-test
 ```
 
 Next, deploy Drupal resources (it won't finish starting, since Drupal hasn't been built yet).
