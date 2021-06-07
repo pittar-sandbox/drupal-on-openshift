@@ -9,7 +9,7 @@ However, if an admin creates a template in the `openshift` project, then it beco
 To add this Drupal template to the global OpenShift catalog, run:
 
 ```
-oc apply -f 4-openshift-templaten -n openshift
+oc apply -f 4-openshift-template -n openshift
 ```
 
 To test out the template, from the OpenShift Developer perspective:
