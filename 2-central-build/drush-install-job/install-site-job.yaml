@@ -1,0 +1,29 @@
+  
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: drush-install
+spec:
+  template:
+    spec:
+      containers:
+        - image: registry.redhat.io/openshift4/ose-cli:v4.7
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Waiting for Drupal to come online..."
+              bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' drupal-app:8080/core/install.php)" != "200" ]]; do sleep 5; done'
+              echo "Drupal is up!  Complete installation."
+              echo "Database name: $database_name"
+              oc exec deployment/drupal-app -i -- /opt/app-root/src/vendor/bin/drush si wxt --db-url=pgsql://$database_user:$database_password@drupal-db/$database_name --site-name=main --account-pass=password --yes
+          imagePullPolicy: Always
+          name: drush-install
+          envFrom:
+            - secretRef:
+                name: drupal-db
+      dnsPolicy: ClusterFirst
+      restartPolicy: OnFailure
+      serviceAccount: drush
+      serviceAccountName: drush
+      terminationGracePeriodSeconds: 30

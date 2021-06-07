@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - drupal-db-deploymentconfig.yaml
+  - drupal-db-pvc.yaml
+  - drupal-db-secret.yaml
+  - drupal-db-svc.yaml

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    openshift.io/description: Drupal - DEV
+    openshift.io/display-name: Drupal - DEV
+  name: drupal-dev

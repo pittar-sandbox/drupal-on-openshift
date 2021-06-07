@@ -1,0 +1,22 @@
+kind: PipelineRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: build-and-deploy-drupal-wxt-
+spec:
+  pipelineRef:
+    name: build-and-deploy-drupal-wxt
+  params:
+    - name: git-repo-url
+      value: https://github.com/pittar-sandbox/site-wxt.git
+    - name: git-repo-revision
+      value: ised-8.x
+    - name: namespace
+      value: all-in-one-test
+    - name: image-name
+      value: drupal-wxt
+    - name: app-name
+      value: drupal-app
+  workspaces:
+    - name: build-workspace
+      persistentVolumeClaim:
+        claimName: build-workspace-pvc

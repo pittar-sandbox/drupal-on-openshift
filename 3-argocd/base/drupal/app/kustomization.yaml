@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - drupal-app-deployment.yaml
+  - drupal-app-route.yaml
+  - drupal-app-svc.yaml
+  - drupal-app-data-pvc.yaml

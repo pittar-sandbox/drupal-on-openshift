@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    openshift.io/description: Drupal - CI/CD
+    openshift.io/display-name: Drupal - CI/CD
+  name: drupal-cicd

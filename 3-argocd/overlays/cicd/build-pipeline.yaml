@@ -1,0 +1,55 @@
+kind: Pipeline
+apiVersion: tekton.dev/v1beta1
+metadata:
+  name: build-drupal-wxt
+spec:
+  workspaces:
+    - name: build-workspace
+  params:
+    - name: git-repo-url
+      type: string
+    - name: git-repo-revision
+      type: string
+      default: 8.x
+    - name: namespace
+      type: string
+    - name: image-name
+      type: string
+    - name: app-name
+      type: string
+  tasks:
+    - name: git-clone
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: build-workspace
+      params:
+        - name: url
+          value: "$(params.git-repo-url)"
+        - name: revision
+          value: "$(params.git-repo-revision)"
+        - name: deleteExisting
+          value: "true"
+    - name: build-drupal
+      taskRef:
+        name: s2i-php
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: image-registry.openshift-image-registry.svc:5000/$(params.namespace)/$(params.image-name):latest
+      workspaces:
+        - name: source
+          workspace: build-workspace
+      runAfter:
+        - git-clone
+    # - name: deploy-app
+    #   taskRef:
+    #     kind: ClusterTask
+    #     name: openshift-client
+    #   runAfter:
+    #     - build-drupal
+    #   params:
+    #     - name: SCRIPT
+    #       value: oc rollout restart deployment/$(params.app-name) -n $(params.namespace)
