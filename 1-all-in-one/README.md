@@ -33,3 +33,8 @@ oc apply -f 1-all-in-one/drush-install-job
 ```
 
 This can be repeated in any new namespace/project.  However, it means each "Team" needs to manage the lifecycle of their own Drupal images.  This has pros and cons.
+
+Once the job is done, you can access Drupal though the route.  Login by adding `/user/login` to the route, and use the default user/pass combination of `admin/password`.
+
+If you want to use the "Canada.ca" look and feel, from the top menu:
+Configuration -> WxT -> WxT Library, then for "WxT Theme Selection" choose "Canada.ca".
