@@ -8,7 +8,7 @@ oc new-project all-in-one-test
 
 Next, deploy Drupal resources (it won't finish starting, since Drupal hasn't been built yet).
 
-If you chose a differnt namespace, you will have to update the image reference in the app deployment to use the proper namespace:
+If you chose a different namespace, you will have to update the image reference in the app deployment to use the proper namespace:
 
 ```
         - image: image-registry.openshift-image-registry.svc:5000/all-in-one-test/drupal-wxt:latest
